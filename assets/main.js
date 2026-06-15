@@ -5,6 +5,15 @@ menuToggle?.addEventListener('click', () => {
   menuToggle.setAttribute('aria-label', isOpen ? 'Close menu' : 'Open menu');
 });
 
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && document.body.classList.contains('menu-open')) {
+    document.body.classList.remove('menu-open');
+    menuToggle?.setAttribute('aria-expanded', 'false');
+    menuToggle?.setAttribute('aria-label', 'Open menu');
+    menuToggle?.focus();
+  }
+});
+
 document.querySelectorAll('.mobile-drawer a').forEach(link => link.addEventListener('click', () => {
   document.body.classList.remove('menu-open');
   menuToggle?.setAttribute('aria-expanded', 'false');
@@ -45,6 +54,7 @@ if (window.matchMedia('(pointer: fine) and (prefers-reduced-motion: no-preferenc
 }
 
 document.querySelectorAll('a[href]').forEach(link => link.addEventListener('click', event => {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
   const href = link.getAttribute('href');
   if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:') || link.target === '_blank') return;
   const target = new URL(link.href, window.location.href);
@@ -65,11 +75,18 @@ const revealObserver = new IntersectionObserver(entries => {
 document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
 
 document.querySelectorAll('.faq-item button').forEach(button => {
+  button.setAttribute('aria-expanded', 'false');
   button.addEventListener('click', () => {
     const item = button.closest('.faq-item');
     const wasOpen = item.classList.contains('open');
-    document.querySelectorAll('.faq-item').forEach(faq => faq.classList.remove('open'));
-    if (!wasOpen) item.classList.add('open');
+    document.querySelectorAll('.faq-item').forEach(faq => {
+      faq.classList.remove('open');
+      faq.querySelector('button')?.setAttribute('aria-expanded', 'false');
+    });
+    if (!wasOpen) {
+      item.classList.add('open');
+      button.setAttribute('aria-expanded', 'true');
+    }
   });
 });
 
@@ -103,6 +120,7 @@ if (form) {
     backButton.disabled = index === 0;
     nextButton.style.display = index === steps.length - 1 ? 'none' : 'inline-flex';
     submitButton.style.display = index === steps.length - 1 ? 'inline-flex' : 'none';
+    steps[index].querySelector('input, select, textarea')?.focus({ preventScroll: true });
   }
 
   function validCurrentStep() {
@@ -115,11 +133,36 @@ if (form) {
   });
   backButton.addEventListener('click', () => { if (current > 0) showStep(current - 1); });
   form.addEventListener('submit', event => {
+    event.preventDefault();
     if (!validCurrentStep()) {
-      event.preventDefault();
       return;
     }
     submitButton.disabled = true;
-    submitButton.innerHTML = 'Sending…';
+    submitButton.innerHTML = 'Opening WhatsApp…';
+
+    const data = new FormData(form);
+    const message = [
+      'New Webliz project enquiry',
+      '',
+      `Name: ${data.get('firstName')} ${data.get('lastName')}`,
+      `Company: ${data.get('company')}`,
+      `Email: ${data.get('email')}`,
+      `Project: ${data.get('service')}`,
+      `Package: ${data.get('budget')}`,
+      `Timeline: ${data.get('timeline')}`,
+      data.get('website') ? `Current website: ${data.get('website')}` : '',
+      '',
+      'Goals:',
+      data.get('goals'),
+      data.get('source') ? `How they found Webliz: ${data.get('source')}` : ''
+    ].filter(Boolean).join('\n');
+    const whatsappUrl = `https://wa.me/916282766374?text=${encodeURIComponent(message)}`;
+    form.querySelector('[data-whatsapp-link]').href = whatsappUrl;
+    form.querySelector('[data-client-name]').textContent = data.get('firstName');
+    document.querySelector('.wizard-progress').style.display = 'none';
+    steps.forEach(step => step.classList.remove('active'));
+    form.querySelector('.wizard-actions').style.display = 'none';
+    form.querySelector('.form-success').classList.add('active');
+    window.open(whatsappUrl, '_blank', 'noopener');
   });
 }

@@ -1,17 +1,26 @@
-# Webliz deployment
+# Webliz on Cloudflare Pages
 
-## Recommended: Netlify
+## Pages build settings
 
-1. Create a new Netlify site and deploy this repository or drag the project folder into Netlify Drop.
-2. No build command is required. The publish directory is `.` and is already configured in `netlify.toml`.
-3. After the first deploy, open **Forms** in Netlify and confirm that `project-enquiry` appears.
-4. In **Project configuration > Notifications > Form submission notifications**, add `hello@webliz.in` so every enquiry is emailed to Webliz.
-5. Add the production domain under **Domain management** and follow Netlify's DNS instructions.
+- Framework preset: `None`
+- Build command: leave empty
+- Build output directory: `/`
+- Production branch: your main branch
 
-The custom `404.html`, clean route redirects, security headers, asset caching, favicon, web manifest, and Netlify form detection are already configured.
+Cloudflare Pages automatically serves `about.html` at `/about`, `services.html` at `/services`, and `contact.html` at `/contact`. Do not add rewrite rules for those pages; doing so creates a redirect loop.
 
-## Before announcing the site
+## Custom domains
 
-- Submit one test enquiry and confirm it arrives in Netlify Forms and at `hello@webliz.in`.
-- Test the call and WhatsApp links on a phone.
-- Add the final domain to Open Graph and canonical metadata when the domain is confirmed.
+Attach both `webliz.in` and `www.webliz.in` from **Workers & Pages > your project > Custom domains**. Set `webliz.in` as the primary domain and redirect `www.webliz.in/*` to `https://webliz.in/$1` with a Cloudflare Redirect Rule.
+
+Do not point `www` at an old server IP. The current public `www` host returns Cloudflare error 522 and must be removed or reattached to the Pages project.
+
+## Contact enquiries
+
+The onboarding wizard sends a structured enquiry through WhatsApp to `+91 62827 66374`. This works on Cloudflare Pages without a server or third-party form provider. The page also exposes `hello@webliz.in` as an email contact.
+
+## After deployment
+
+1. Confirm `/`, `/about`, `/services`, `/contact`, `/robots.txt`, and `/sitemap.xml` return HTTP 200.
+2. Add `https://webliz.in/sitemap.xml` to Google Search Console and Bing Webmaster Tools.
+3. Test the phone, email, WhatsApp, and onboarding actions from a mobile device.

@@ -2,7 +2,7 @@
   "name": "Webliz",
   "short_name": "Webliz",
   "description": "Strategic websites for ambitious local businesses.",
-  "start_url": "./index.html",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#f5f7fa",
   "theme_color": "#1687e8",
