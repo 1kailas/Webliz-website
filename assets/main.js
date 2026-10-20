@@ -1,142 +1,235 @@
-const menuToggle = document.querySelector('.menu-toggle');
-menuToggle?.addEventListener('click', () => {
-  const isOpen = document.body.classList.toggle('menu-open');
-  menuToggle.setAttribute('aria-expanded', String(isOpen));
-  menuToggle.setAttribute('aria-label', isOpen ? 'Close menu' : 'Open menu');
-});
+(() => {
+  document.documentElement.classList.add('js');
 
-document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && document.body.classList.contains('menu-open')) {
-    document.body.classList.remove('menu-open');
-    menuToggle?.setAttribute('aria-expanded', 'false');
-    menuToggle?.setAttribute('aria-label', 'Open menu');
-    menuToggle?.focus();
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const menuToggle = document.querySelector('.menu-toggle');
+  const header = document.querySelector('.site-header');
+  const mobileDrawer = document.querySelector('.mobile-drawer');
+  let lastFocusedElement = null;
+  const currentPath = window.location.pathname.replace(/\.html$/, '').replace(/\/$/, '') || '/';
+  const activePath = currentPath === '/home' ? '/' : currentPath;
+
+  if (menuToggle && mobileDrawer) {
+    const drawerId = mobileDrawer.id || 'mobile-navigation';
+    mobileDrawer.id = drawerId;
+    mobileDrawer.querySelector('nav')?.setAttribute('aria-label', 'Mobile navigation');
+    menuToggle.setAttribute('aria-controls', drawerId);
+    mobileDrawer.setAttribute('aria-hidden', 'true');
   }
-});
-
-const header = document.querySelector('.site-header');
-const scrollProgress = document.createElement('div');
-scrollProgress.className = 'scroll-progress';
-document.body.appendChild(scrollProgress);
-window.addEventListener('scroll', () => {
-  header?.classList.toggle('is-scrolled', window.scrollY > 24);
-  const max = document.documentElement.scrollHeight - window.innerHeight;
-  scrollProgress.style.transform = `scaleX(${max > 0 ? window.scrollY / max : 0})`;
-}, { passive: true });
-
-let initParallax = () => {};
-if (window.matchMedia('(pointer: fine) and (prefers-reduced-motion: no-preference)').matches) {
-  const glow = document.createElement('div');
-  glow.className = 'cursor-glow';
-  document.body.appendChild(glow);
-  window.addEventListener('pointermove', event => {
-    glow.animate({ transform: `translate(${event.clientX - 150}px, ${event.clientY - 150}px)` }, { duration: 700, fill: 'forwards' });
+  document.querySelector('.desktop-nav')?.setAttribute('aria-label', 'Primary navigation');
+  document.querySelectorAll('.desktop-nav a, .mobile-drawer nav a').forEach((link) => {
+    const linkPath =
+      new URL(link.href, window.location.href).pathname.replace(/\.html$/, '').replace(/\/$/, '') ||
+      '/';
+    const isCurrent = linkPath === activePath;
+    link.classList.toggle('active', isCurrent);
+    if (isCurrent) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
   });
 
-  initParallax = () => {
-    const visual = document.querySelector('.hero-visual');
-    if (!visual) return;
-    visual.addEventListener('pointermove', event => {
-      const box = visual.getBoundingClientRect();
-      const x = (event.clientX - box.left) / box.width - .5;
-      const y = (event.clientY - box.top) / box.height - .5;
-      visual.style.setProperty('--parallax-x', `${x * 12}px`);
-      visual.style.setProperty('--parallax-y', `${y * 12}px`);
-    });
-    visual.addEventListener('pointerleave', () => {
-      visual.style.setProperty('--parallax-x', '0px');
-      visual.style.setProperty('--parallax-y', '0px');
-    });
-  };
-}
+  // Keep the mobile navigation state in sync with the button and keyboard.
+  function setMenuOpen(open) {
+    if (open) lastFocusedElement = document.activeElement;
+    document.body.classList.toggle('menu-open', open);
+    menuToggle?.setAttribute('aria-expanded', String(open));
+    menuToggle?.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    mobileDrawer?.setAttribute('aria-hidden', String(!open));
+    if (open) {
+      mobileDrawer?.querySelector('a, button')?.focus({ preventScroll: true });
+    } else if (lastFocusedElement instanceof HTMLElement) {
+      lastFocusedElement.focus({ preventScroll: true });
+      lastFocusedElement = null;
+    }
+  }
 
-function initPageScripts() {
-  document.querySelectorAll('[data-year]').forEach(el => { el.textContent = new Date().getFullYear(); });
-  initParallax();
+  menuToggle?.addEventListener('click', () => {
+    setMenuOpen(menuToggle.getAttribute('aria-expanded') !== 'true');
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && document.body.classList.contains('menu-open')) {
+      setMenuOpen(false);
+      menuToggle?.focus();
+    }
 
-  const revealObserver = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('visible');
-        revealObserver.unobserve(entry.target);
+    if (event.key === 'Tab' && document.body.classList.contains('menu-open') && mobileDrawer) {
+      const focusable = [...mobileDrawer.querySelectorAll('a[href], button:not([disabled])')];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
-    });
-  }, { threshold: 0.12 });
-  document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+    }
+  });
+  document.querySelectorAll('.mobile-drawer a').forEach((link) => {
+    link.addEventListener('click', () => setMenuOpen(false));
+  });
 
-  document.querySelectorAll('.faq-item button').forEach(button => {
+  // Header treatment and reading progress are updated in one animation frame.
+  const progress = document.createElement('div');
+  progress.className = 'scroll-progress';
+  progress.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(progress);
+  let scrollQueued = false;
+  const updateScrollUI = () => {
+    header?.classList.toggle('is-scrolled', window.scrollY > 24);
+    const distance = document.documentElement.scrollHeight - window.innerHeight;
+    progress.style.transform = `scaleX(${distance > 0 ? window.scrollY / distance : 0})`;
+    scrollQueued = false;
+  };
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (!scrollQueued) {
+        scrollQueued = true;
+        window.requestAnimationFrame(updateScrollUI);
+      }
+    },
+    { passive: true },
+  );
+  updateScrollUI();
+
+  document.querySelectorAll('[data-year]').forEach((el) => {
+    el.textContent = new Date().getFullYear();
+  });
+
+  // Reveal content as it enters view; show it immediately on older browsers.
+  const revealItems = document.querySelectorAll('.reveal');
+  if ('IntersectionObserver' in window && !reducedMotion) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12 },
+    );
+    revealItems.forEach((item) => observer.observe(item));
+  } else {
+    revealItems.forEach((item) => item.classList.add('visible'));
+  }
+
+  // Accordion buttons expose their state to assistive technology.
+  document.querySelectorAll('.faq-item button').forEach((button, index) => {
+    const panel = button.nextElementSibling;
+    const panelId = `faq-panel-${index + 1}`;
     button.setAttribute('aria-expanded', 'false');
+    button.setAttribute('aria-controls', panelId);
+    panel?.setAttribute('id', panelId);
+    panel?.setAttribute('role', 'region');
+    panel?.setAttribute('aria-labelledby', `faq-button-${index + 1}`);
+    panel?.setAttribute('aria-hidden', 'true');
+    button.setAttribute('id', `faq-button-${index + 1}`);
     button.addEventListener('click', () => {
       const item = button.closest('.faq-item');
-      const wasOpen = item.classList.contains('open');
-      document.querySelectorAll('.faq-item').forEach(faq => {
+      const willOpen = !item.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach((faq) => {
         faq.classList.remove('open');
         faq.querySelector('button')?.setAttribute('aria-expanded', 'false');
+        faq.querySelector('[role="region"]')?.setAttribute('aria-hidden', 'true');
       });
-      if (!wasOpen) {
+      if (willOpen) {
         item.classList.add('open');
         button.setAttribute('aria-expanded', 'true');
+        item.querySelector('[role="region"]')?.setAttribute('aria-hidden', 'false');
       }
     });
   });
 
-  const form = document.querySelector('#project-form');
-  if (form) {
+  initProjectForm();
+
+  function initProjectForm() {
+    const form = document.querySelector('#project-form');
+    if (!form) return;
+
     const steps = [...form.querySelectorAll('.form-step')];
     const nextButton = form.querySelector('.next-button');
     const backButton = form.querySelector('.back-button');
     const submitButton = form.querySelector('.submit-button');
-    const progress = document.querySelector('.progress-track i');
-    const currentLabel = document.querySelector('[data-current-step]');
-    const nameLabel = document.querySelector('[data-step-name]');
+    const progressTrack = form.querySelector('.progress-track i');
+    const progressRegion = form.querySelector('.progress-track');
+    const currentLabel = form.querySelector('[data-current-step]');
+    const nameLabel = form.querySelector('[data-step-name]');
+    const actions = form.querySelector('.wizard-actions');
+    const success = form.querySelector('.form-success');
     const stepNames = ['About you', 'Your project', 'Scope & investment', 'Your goals'];
     let current = 0;
+    let isSubmitting = false;
 
-    const packageName = new URLSearchParams(window.location.search).get('package');
-    const packageMap = { starter: 'New business website', business: 'Growth website', premium: 'Premium website' };
+    progressRegion?.setAttribute('role', 'progressbar');
+    progressRegion?.setAttribute('aria-label', 'Enquiry progress');
+    progressRegion?.setAttribute('aria-valuemin', '1');
+    progressRegion?.setAttribute('aria-valuemax', String(steps.length));
+
+    const params = new URLSearchParams(window.location.search);
+    const packageName = params.get('package');
+    const packageMap = {
+      starter: ['New business website', 'Starter — ₹1,999'],
+      business: ['Business website', 'Business — ₹3,999'],
+      premium: ['Premium website', 'Premium — ₹5,999'],
+    };
     if (packageMap[packageName]) {
-      const chosen = form.querySelector(`input[value="${packageMap[packageName]}"]`);
-      if (chosen) chosen.checked = true;
+      const [service, budget] = packageMap[packageName];
+      const serviceOption = [...form.querySelectorAll('[name="service"]')].find(
+        (input) => input.value === service,
+      );
+      if (serviceOption) serviceOption.checked = true;
+      if (form.elements.budget) form.elements.budget.value = budget;
     }
-    const budgetMap = { starter: 'Starter — ₹1,999', business: 'Business — ₹3,999', premium: 'Premium — ₹5,999' };
-    if (budgetMap[packageName] && form.elements.budget) form.elements.budget.value = budgetMap[packageName];
 
-    function showStep(index) {
-      steps.forEach((step, i) => step.classList.toggle('active', i === index));
+    function showStep(index, moveFocus = true) {
       current = index;
-      currentLabel.textContent = index + 1;
-      nameLabel.textContent = stepNames[index];
-      progress.style.width = `${(index + 1) * 25}%`;
-      backButton.disabled = index === 0;
-      nextButton.style.display = index === steps.length - 1 ? 'none' : 'inline-flex';
-      submitButton.style.display = index === steps.length - 1 ? 'inline-flex' : 'none';
-      steps[index].querySelector('input, select, textarea')?.focus({ preventScroll: true });
+      steps.forEach((step, stepIndex) => {
+        step.classList.toggle('active', stepIndex === index);
+        step.setAttribute('aria-hidden', String(stepIndex !== index));
+      });
+      if (currentLabel) currentLabel.textContent = String(index + 1);
+      if (nameLabel) nameLabel.textContent = stepNames[index];
+      if (progressTrack) progressTrack.style.width = `${((index + 1) / steps.length) * 100}%`;
+      progressRegion?.setAttribute('aria-valuenow', String(index + 1));
+      if (backButton) backButton.disabled = index === 0;
+      if (nextButton) nextButton.hidden = index === steps.length - 1;
+      if (submitButton) submitButton.hidden = index !== steps.length - 1;
+      if (moveFocus)
+        steps[index]
+          .querySelector('input:not([type="radio"]), select, textarea, input[type="radio"]')
+          ?.focus({ preventScroll: true });
     }
 
-    function validCurrentStep() {
-      const fields = [...steps[current].querySelectorAll('input, select, textarea')];
-      return fields.every(field => field.reportValidity());
+    function currentStepIsValid() {
+      const invalidField = [...steps[current].querySelectorAll('input, select, textarea')].find(
+        (field) => !field.checkValidity(),
+      );
+      if (!invalidField) return true;
+      invalidField.reportValidity();
+      return false;
     }
 
-    nextButton.addEventListener('click', () => {
-      if (validCurrentStep() && current < steps.length - 1) showStep(current + 1);
+    nextButton?.addEventListener('click', () => {
+      if (currentStepIsValid() && current < steps.length - 1) showStep(current + 1);
     });
-    backButton.addEventListener('click', () => { if (current > 0) showStep(current - 1); });
-    
-    // Clear previous submit listener if any (just in case)
-    const newForm = form.cloneNode(true);
-    form.replaceWith(newForm);
-    newForm.addEventListener('submit', event => {
-      event.preventDefault();
-      const currentSteps = [...newForm.querySelectorAll('.form-step')];
-      const stepFields = [...currentSteps[current].querySelectorAll('input, select, textarea')];
-      if (!stepFields.every(field => field.reportValidity())) return;
-      
-      const subBtn = newForm.querySelector('.submit-button');
-      subBtn.disabled = true;
-      subBtn.innerHTML = 'Opening WhatsApp…';
+    backButton?.addEventListener('click', () => {
+      if (current > 0) showStep(current - 1);
+    });
 
-      const data = new FormData(newForm);
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (isSubmitting) return;
+      if (current < steps.length - 1) {
+        if (currentStepIsValid()) showStep(current + 1);
+        return;
+      }
+      if (!currentStepIsValid()) return;
+      isSubmitting = true;
+
+      const data = new FormData(form);
       const message = [
         'New Webliz project enquiry',
         '',
@@ -150,85 +243,26 @@ function initPageScripts() {
         '',
         'Goals:',
         data.get('goals'),
-        data.get('source') ? `How they found Webliz: ${data.get('source')}` : ''
-      ].filter(Boolean).join('\n');
+        data.get('source') ? `How they found Webliz: ${data.get('source')}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
       const whatsappUrl = `https://wa.me/916282766374?text=${encodeURIComponent(message)}`;
-      newForm.querySelector('[data-whatsapp-link]').href = whatsappUrl;
-      newForm.querySelector('[data-client-name]').textContent = data.get('firstName');
-      document.querySelector('.wizard-progress').style.display = 'none';
-      currentSteps.forEach(step => step.classList.remove('active'));
-      newForm.querySelector('.wizard-actions').style.display = 'none';
-      newForm.querySelector('.form-success').classList.add('active');
-      window.open(whatsappUrl, '_blank', 'noopener');
+      const whatsappLink = form.querySelector('[data-whatsapp-link]');
+      if (whatsappLink) whatsappLink.href = whatsappUrl;
+      const clientName = form.querySelector('[data-client-name]');
+      if (clientName) clientName.textContent = data.get('firstName') || 'there';
+      if (submitButton) submitButton.disabled = true;
+
+      // Open during the submit gesture so browsers do not block the WhatsApp tab.
+      window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+      form.querySelector('.wizard-progress')?.setAttribute('hidden', '');
+      steps.forEach((step) => step.classList.remove('active'));
+      actions?.setAttribute('hidden', '');
+      success?.classList.add('active');
+      success?.focus?.({ preventScroll: true });
     });
+
+    showStep(0, false);
   }
-}
-
-// Initialize on first load
-initPageScripts();
-
-async function navigateTo(url, isBack = false) {
-  document.body.classList.add('leaving');
-  
-  try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Network error');
-    const html = await response.text();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    
-    setTimeout(() => {
-      document.title = doc.title;
-      document.querySelector('main').innerHTML = doc.querySelector('main').innerHTML;
-      
-      const targetPath = new URL(url, window.location.origin).pathname;
-      document.querySelectorAll('.desktop-nav a, .mobile-drawer nav a').forEach(a => {
-        const linkPath = new URL(a.href, window.location.origin).pathname;
-        if (linkPath === targetPath) a.classList.add('active');
-        else a.classList.remove('active');
-      });
-
-      if (!isBack) window.history.pushState({}, '', url);
-      window.scrollTo(0, 0);
-      
-      initPageScripts();
-      
-      document.body.classList.remove('leaving');
-    }, 280);
-  } catch (e) {
-    window.location.href = url;
-  }
-}
-
-window.addEventListener('popstate', () => {
-  navigateTo(window.location.href, true);
-});
-
-document.body.addEventListener('click', event => {
-  const link = event.target.closest('a[href]');
-  if (!link) return;
-  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-  
-  const href = link.getAttribute('href');
-  
-  if (link.closest('.mobile-drawer') && document.body.classList.contains('menu-open')) {
-    document.body.classList.remove('menu-open');
-    menuToggle?.setAttribute('aria-expanded', 'false');
-  }
-
-  if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:') || link.target === '_blank') return;
-  
-  const target = new URL(link.href, window.location.href);
-  if (target.origin !== window.location.origin) return;
-  
-  if (target.pathname === window.location.pathname && target.hash) return;
-  
-  event.preventDefault();
-
-  if (document.body.classList.contains('menu-open')) {
-    document.body.classList.remove('menu-open');
-    menuToggle?.setAttribute('aria-expanded', 'false');
-  }
-
-  navigateTo(link.href);
-});
+})();

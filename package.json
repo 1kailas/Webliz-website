@@ -1,0 +1,19 @@
+{
+  "name": "webliz-website",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build && node scripts/copy-site-config.mjs",
+    "preview": "vite preview --host 0.0.0.0",
+    "format": "prettier --write *.html assets/*.css assets/*.js scripts/*.mjs vite.config.js package.json README.md DEPLOYMENT.md"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10",
+    "vite": "^8.1.6"
+  }
+}

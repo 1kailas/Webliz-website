@@ -1,26 +1,45 @@
-# Webliz on Cloudflare Pages
+# Webliz website
 
-## Pages build settings
+## Requirements
+
+- Node.js 22.12 or newer
+- npm 10 or newer
+
+## Local development
+
+```sh
+npm install
+npm run dev
+```
+
+Vite serves the multi-page site at clean URLs: `/`, `/about`, `/services`, `/contact`, and `/thanks`. Trailing slashes are accepted. The contact route also preserves query strings such as `/contact?package=business`.
+
+## Build and preview
+
+```sh
+npm run build
+npm run preview
+```
+
+The production site is written to `dist/`. The build keeps the HTML pages as separate documents, bundles their CSS and JavaScript, and copies the Cloudflare Pages headers, robots rules, and sitemap into the output.
+
+## Cloudflare Pages
+
+Set the project up with:
 
 - Framework preset: `None`
-- Build command: leave empty
-- Build output directory: `/`
-- Production branch: your main branch
+- Build command: `npm run build`
+- Build output directory: `dist`
+- Node.js version: `22.12` or newer
 
-Cloudflare Pages automatically serves `about.html` at `/about`, `services.html` at `/services`, and `contact.html` at `/contact`. Do not add rewrite rules for those pages; doing so creates a redirect loop.
+Cloudflare Pages serves `about.html`, `services.html`, `contact.html`, and `thanks.html` at the clean routes `/about`, `/services`, `/contact`, and `/thanks`. It handles these routes natively. The build also creates a real `home.html` alias for `/home`. Keep `_redirects` out of the project unless a redirect is specifically required; do not add rewrites from clean routes back to `.html` files.
 
-## Custom domains
-
-Attach both `webliz.in` and `www.webliz.in` from **Workers & Pages > your project > Custom domains**. Set `webliz.in` as the primary domain and redirect `www.webliz.in/*` to `https://webliz.in/$1` with a Cloudflare Redirect Rule.
-
-Do not point `www` at an old server IP. The current public `www` host returns Cloudflare error 522 and must be removed or reattached to the Pages project.
+Attach both `webliz.in` and `www.webliz.in` under **Workers & Pages > your project > Custom domains**. Set `webliz.in` as primary and redirect `www.webliz.in/*` to `https://webliz.in/$1` with a Cloudflare Redirect Rule.
 
 ## Contact enquiries
 
-The onboarding wizard sends a structured enquiry through WhatsApp to `+91 62827 66374`. This works on Cloudflare Pages without a server or third-party form provider. The page also exposes `hello@webliz.in` as an email contact.
+The onboarding wizard prepares an enquiry and opens WhatsApp to `+91 62827 66374`; the client must send the prepared message in WhatsApp. It does not post to a server or send email. The page also exposes `hello@webliz.in` as an email contact. The `/contact` document is served with a no-store cache policy so stale form markup is not reused.
 
 ## After deployment
 
-1. Confirm `/`, `/about`, `/services`, `/contact`, `/robots.txt`, and `/sitemap.xml` return HTTP 200.
-2. Add `https://webliz.in/sitemap.xml` to Google Search Console and Bing Webmaster Tools.
-3. Test the phone, email, WhatsApp, and onboarding actions from a mobile device.
+Confirm `/`, `/about`, `/services`, `/contact`, `/robots.txt`, and `/sitemap.xml` return successfully. Submit a contact enquiry from desktop and mobile, and check the phone, email, and WhatsApp actions.
